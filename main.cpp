@@ -30,7 +30,7 @@ private:
     void initProgram();
     void initBuffer();
 
-    QOpenGLShaderProgram m_program;
+    QOpenGLShaderProgram *m_program = nullptr;
     QOpenGLVertexArrayObject m_vao;
     QOpenGLBuffer m_vbo;
     QMatrix4x4 m_model;
@@ -56,7 +56,14 @@ GLWidget::GLWidget(QWidget *parent)
     m_view.lookAt(eye, center, up);
 }
 
-GLWidget::~GLWidget() = default;
+GLWidget::~GLWidget()
+{
+    makeCurrent();
+    m_vbo.destroy();
+    m_vao.destroy();
+    delete m_program;
+    doneCurrent();
+}
 
 void GLWidget::paintGL()
 {
@@ -71,10 +78,10 @@ void GLWidget::paintGL()
 
     QMatrix4x4 mvp = m_projection * m_view * m_model;
 
-    m_program.bind();
-    m_program.setUniformValue(m_mvpUniform, mvp);
-    m_program.setUniformValue(m_viewportSizeUniform, QVector2D(width(), height()));
-    m_program.setUniformValue(m_thicknessUniform, m_thickness);
+    m_program->bind();
+    m_program->setUniformValue(m_mvpUniform, mvp);
+    m_program->setUniformValue(m_viewportSizeUniform, QVector2D(width(), height()));
+    m_program->setUniformValue(m_thicknessUniform, m_thickness);
 
     {
         QOpenGLVertexArrayObject::Binder vaoBinder(&m_vao);
@@ -103,17 +110,18 @@ void GLWidget::initializeGL()
 
 void GLWidget::initProgram()
 {
-    if (!m_program.addShaderFromSourceFile(QOpenGLShader::Vertex, ":/line.vert"))
-        qWarning() << "Failed to add vertex shader:" << m_program.log();
-    if (!m_program.addShaderFromSourceFile(QOpenGLShader::Geometry, ":/line.geom"))
-        qWarning() << "Failed to add vertex shader:" << m_program.log();
-    if (!m_program.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/line.frag"))
-        qWarning() << "Failed to add fragment shader:" << m_program.log();
-    if (!m_program.link())
+    m_program = new QOpenGLShaderProgram;
+    if (!m_program->addShaderFromSourceFile(QOpenGLShader::Vertex, ":/line.vert"))
+        qWarning() << "Failed to add vertex shader:" << m_program->log();
+    if (!m_program->addShaderFromSourceFile(QOpenGLShader::Geometry, ":/line.geom"))
+        qWarning() << "Failed to add vertex shader:" << m_program->log();
+    if (!m_program->addShaderFromSourceFile(QOpenGLShader::Fragment, ":/line.frag"))
+        qWarning() << "Failed to add fragment shader:" << m_program->log();
+    if (!m_program->link())
         qWarning() << "Failed to link program";
-    m_mvpUniform = m_program.uniformLocation("mvp");
-    m_viewportSizeUniform = m_program.uniformLocation("viewportSize");
-    m_thicknessUniform = m_program.uniformLocation("thickness");
+    m_mvpUniform = m_program->uniformLocation("mvp");
+    m_viewportSizeUniform = m_program->uniformLocation("viewportSize");
+    m_thicknessUniform = m_program->uniformLocation("thickness");
 }
 
 void GLWidget::initBuffer()
@@ -158,8 +166,8 @@ void GLWidget::initBuffer()
     m_vbo.bind();
     m_vbo.allocate(m_wireframeVertices.data(), m_wireframeVertices.size() * sizeof(QVector3D));
 
-    m_program.enableAttributeArray(0); // position
-    m_program.setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(QVector3D));
+    m_program->enableAttributeArray(0); // position
+    m_program->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(QVector3D));
     m_vbo.release();
 }
 
