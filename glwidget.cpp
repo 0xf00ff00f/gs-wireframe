@@ -70,19 +70,51 @@ void GLWidget::initializeGL()
 void GLWidget::mousePressEvent(QMouseEvent *event)
 {
     m_lastMousePos = event->pos();
+    m_cameraCommand = [event] {
+        switch (event->button())
+        {
+        case Qt::LeftButton:
+            return CameraCommand::Pan;
+        case Qt::RightButton:
+            return CameraCommand::Rotate;
+        default:
+            return CameraCommand::None;
+        }
+    }();
     event->accept();
 }
 
 void GLWidget::mouseMoveEvent(QMouseEvent *event)
 {
-    const auto offset = event->pos() - m_lastMousePos;
+    const auto offset = QVector2D(event->pos() - m_lastMousePos);
+
+    switch (m_cameraCommand)
+    {
+    case CameraCommand::Rotate: {
+        constexpr auto RotateSpeed = 0.2f;
+        m_camera->panAboutViewCenter(-RotateSpeed * offset.x());
+        m_camera->tiltAboutViewCenter(RotateSpeed * offset.y());
+        break;
+    }
+    case CameraCommand::Pan: {
+        constexpr auto PanSpeed = 0.01f;
+        const auto l = (m_camera->viewCenter() - m_camera->position()).length();
+        m_camera->translate(PanSpeed * QVector3D(-offset.x(), offset.y(), 0));
+        break;
+    }
+    default:
+        break;
+    }
 
     m_lastMousePos = event->pos();
-
-    m_camera->panAboutViewCenter(-offset.x());
-    m_camera->tiltAboutViewCenter(offset.y());
-
     event->accept();
+}
+
+void GLWidget::wheelEvent(QWheelEvent *event)
+{
+    constexpr auto ZoomSpeed = 0.01f;
+    const auto dz = ZoomSpeed * event->angleDelta().y();
+    m_camera->zoom(dz);
 }
 
 void GLWidget::initProgram()

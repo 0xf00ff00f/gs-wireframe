@@ -22,17 +22,23 @@ public:
 
     QMatrix4x4 viewMatrix() const { return m_viewMatrix; }
 
+    QVector3D viewVector() const { return m_viewCenter - m_position; }
+
     void panAboutViewCenter(float angle);
     void tiltAboutViewCenter(float angle);
+    void zoom(float dz);
+
+    void translate(const QVector3D &offset);
     void rotate(float angle, const QVector3D &axis);
 
 signals:
     void viewMatrixChanged(const QMatrix4x4 &viewMatrix);
 
 private:
+    QVector3D localToWorld(const QVector3D &v) const;
     void updateViewMatrix();
 
-    QVector3D m_position = QVector3D(5, 5, 5);
+    QVector3D m_position = QVector3D(0, 0, 8);
     QVector3D m_upVector = QVector3D(0, 1, 0);
     QVector3D m_viewCenter = QVector3D(0, 0, 0);
     QMatrix4x4 m_viewMatrix;

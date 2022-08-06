@@ -44,6 +44,35 @@ void Camera::tiltAboutViewCenter(float angle)
     rotate(angle, axis);
 }
 
+void Camera::zoom(float dz)
+{
+    constexpr auto MinDistance = 1.0f;
+    constexpr auto MaxDistance = 20.0f;
+
+    const auto toCenter = m_position - m_viewCenter;
+    auto distance = toCenter.length();
+    distance -= distance * dz;
+    distance = std::clamp(distance, MinDistance, MaxDistance);
+    setPosition(m_viewCenter + toCenter.normalized() * distance);
+}
+
+void Camera::translate(const QVector3D &localOffset)
+{
+    const auto worldOffset = localToWorld(localOffset);
+    setPosition(m_position + worldOffset);
+    setViewCenter(m_viewCenter + worldOffset);
+}
+
+QVector3D Camera::localToWorld(const QVector3D &v) const
+{
+    const auto viewVector = m_viewCenter - m_position;
+    if (viewVector.isNull())
+        return {};
+    const auto xBasis = QVector3D::crossProduct(viewVector, m_upVector).normalized();
+    const auto yBasis = QVector3D::crossProduct(xBasis, viewVector).normalized();
+    return v.x() * xBasis + v.y() * yBasis + v.z() * viewVector.normalized();
+}
+
 void Camera::rotate(float angle, const QVector3D &axis)
 {
     const auto q = QQuaternion::fromAxisAndAngle(axis, angle);

@@ -24,6 +24,7 @@ protected:
     void initializeGL() override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
 
 private:
     void initProgram();
@@ -41,4 +42,11 @@ private:
     std::vector<QVector3D> m_wireframeVertices;
     float m_thickness = 4.0f;
     QPoint m_lastMousePos;
+    enum class CameraCommand
+    {
+        None,
+        Rotate,
+        Pan
+    };
+    CameraCommand m_cameraCommand = CameraCommand::None;
 };
