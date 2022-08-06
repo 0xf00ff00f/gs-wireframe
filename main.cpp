@@ -30,17 +30,6 @@ private:
     void initProgram();
     void initBuffer();
 
-    struct Vertex
-    {
-        QVector3D from;
-        QVector3D to;
-        QVector2D offset;
-        QVector2D texCoord;
-    };
-    static_assert(sizeof(QVector3D) == 3 * sizeof(float));
-    static_assert(sizeof(QVector2D) == 2 * sizeof(float));
-    static_assert(sizeof(Vertex) == (3 + 3 + 2 + 2) * sizeof(float));
-
     QOpenGLShaderProgram m_program;
     QOpenGLVertexArrayObject m_vao;
     QOpenGLBuffer m_vbo;
@@ -51,7 +40,7 @@ private:
     int m_mvpUniformLine = -1;
     int m_viewportSizeUniform = -1;
     int m_thicknessUniform = -1;
-    std::vector<Vertex> m_wireframeVertices;
+    std::vector<QVector3D> m_wireframeVertices;
     float m_thickness = 4.0f;
 };
 
@@ -90,7 +79,7 @@ void GLWidget::paintGL()
 
     QOpenGLVertexArrayObject::Binder vaoBinder(&m_vao);
 
-    glDrawArrays(GL_TRIANGLES, 0, m_wireframeVertices.size());
+    glDrawArrays(GL_LINES, 0, m_wireframeVertices.size());
 
     m_model.rotate(0.1, QVector3D(0, 1, 0));
     update();
@@ -115,6 +104,8 @@ void GLWidget::initializeGL()
 void GLWidget::initProgram()
 {
     if (!m_program.addShaderFromSourceFile(QOpenGLShader::Vertex, ":/line.vert"))
+        qWarning() << "Failed to add vertex shader:" << m_program.log();
+    if (!m_program.addShaderFromSourceFile(QOpenGLShader::Geometry, ":/line.geom"))
         qWarning() << "Failed to add vertex shader:" << m_program.log();
     if (!m_program.addShaderFromSourceFile(QOpenGLShader::Fragment, ":/line.frag"))
         qWarning() << "Failed to add fragment shader:" << m_program.log();
@@ -154,43 +145,10 @@ void GLWidget::initBuffer()
             seen.insert(std::tuple(fromIndex, toIndex));
 
             const auto from = positions[fromIndex] - center;
+            m_wireframeVertices.push_back(from);
+
             const auto to = positions[toIndex] - center;
-
-            const auto v0 = Vertex{from, to, QVector2D(-1, -1), QVector2D(0, 0)};
-            const auto v1 = Vertex{from, to, QVector2D(-1, 1), QVector2D(0, 1)};
-
-            const auto v2 = Vertex{from, to, QVector2D(0, -1), QVector2D(0.5, 0)};
-            const auto v3 = Vertex{from, to, QVector2D(0, 1), QVector2D(0.5, 1)};
-
-            const auto v4 = Vertex{to, from, QVector2D(0, 1), QVector2D(0.5, 0)};
-            const auto v5 = Vertex{to, from, QVector2D(0, -1), QVector2D(0.5, 1)};
-
-            const auto v6 = Vertex{to, from, QVector2D(-1, 1), QVector2D(1, 0)};
-            const auto v7 = Vertex{to, from, QVector2D(-1, -1), QVector2D(1, 1)};
-
-            m_wireframeVertices.push_back(v0);
-            m_wireframeVertices.push_back(v1);
-            m_wireframeVertices.push_back(v3);
-
-            m_wireframeVertices.push_back(v3);
-            m_wireframeVertices.push_back(v2);
-            m_wireframeVertices.push_back(v0);
-
-            m_wireframeVertices.push_back(v2);
-            m_wireframeVertices.push_back(v3);
-            m_wireframeVertices.push_back(v5);
-
-            m_wireframeVertices.push_back(v5);
-            m_wireframeVertices.push_back(v4);
-            m_wireframeVertices.push_back(v2);
-
-            m_wireframeVertices.push_back(v4);
-            m_wireframeVertices.push_back(v5);
-            m_wireframeVertices.push_back(v7);
-
-            m_wireframeVertices.push_back(v7);
-            m_wireframeVertices.push_back(v6);
-            m_wireframeVertices.push_back(v4);
+            m_wireframeVertices.push_back(to);
         }
     }
 
@@ -199,17 +157,10 @@ void GLWidget::initBuffer()
 
     m_vbo.create();
     m_vbo.bind();
-    m_vbo.allocate(m_wireframeVertices.data(), m_wireframeVertices.size() * sizeof(Vertex));
+    m_vbo.allocate(m_wireframeVertices.data(), m_wireframeVertices.size() * sizeof(QVector3D));
 
-    m_program.enableAttributeArray(0); // from
-    m_program.enableAttributeArray(1); // to
-    m_program.enableAttributeArray(2); // shift
-    m_program.enableAttributeArray(3); // texCoord
-
-    m_program.setAttributeBuffer(0, GL_FLOAT, offsetof(Vertex, from), 3, sizeof(Vertex));
-    m_program.setAttributeBuffer(1, GL_FLOAT, offsetof(Vertex, to), 3, sizeof(Vertex));
-    m_program.setAttributeBuffer(2, GL_FLOAT, offsetof(Vertex, offset), 2, sizeof(Vertex));
-    m_program.setAttributeBuffer(3, GL_FLOAT, offsetof(Vertex, texCoord), 2, sizeof(Vertex));
+    m_program.enableAttributeArray(0); // position
+    m_program.setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(QVector3D));
     m_vbo.release();
 }
 
@@ -247,7 +198,7 @@ MainWindow::MainWindow(QWidget *parent)
     thicknessSlider->setMaximum(1000);
     connect(thicknessSlider, &QAbstractSlider::valueChanged, this, [this, thicknessSlider, glWidget](int value) {
         constexpr auto kMinThickness = 0.5f;
-        constexpr auto kMaxThickness = 32.0f;
+        constexpr auto kMaxThickness = 128.0f;
         const auto t = static_cast<float>(value - thicknessSlider->minimum()) /
                        static_cast<float>(thicknessSlider->maximum() - thicknessSlider->minimum());
         const auto thickness = kMinThickness + t * (kMaxThickness - kMinThickness);
@@ -262,7 +213,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
 
     MainWindow w;
-    w.resize(800, 400);
+    w.resize(1200, 600);
     w.show();
 
     return app.exec();

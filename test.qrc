@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/">
         <file>line.vert</file>
+        <file>line.geom</file>
         <file>line.frag</file>
         <file>cow.obj</file>
         <file>cube.obj</file>
