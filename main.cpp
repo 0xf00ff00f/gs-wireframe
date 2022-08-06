@@ -1,4 +1,5 @@
 #include "mesh.h"
+#include "camera.h"
 
 #include <QApplication>
 #include <QLabel>
@@ -9,6 +10,7 @@
 #include <QOpenGLWidget>
 #include <QSlider>
 #include <QVBoxLayout>
+#include <QMouseEvent>
 
 #include <set>
 
@@ -25,6 +27,8 @@ protected:
     void resizeGL(int w, int h) override;
     void paintGL() override;
     void initializeGL() override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
 
 private:
     void initProgram();
@@ -33,27 +37,25 @@ private:
     QOpenGLShaderProgram *m_program = nullptr;
     QOpenGLVertexArrayObject m_vao;
     QOpenGLBuffer m_vbo;
+    Camera *m_camera;
     QMatrix4x4 m_model;
-    QMatrix4x4 m_view;
     QMatrix4x4 m_projection;
     int m_mvpUniform = -1;
     int m_viewportSizeUniform = -1;
     int m_thicknessUniform = -1;
     std::vector<QVector3D> m_wireframeVertices;
     float m_thickness = 4.0f;
+    QPoint m_lastMousePos;
 };
 
 GLWidget::GLWidget(QWidget *parent)
     : QOpenGLWidget(parent)
+    , m_camera(new Camera(this))
 {
     Q_ASSERT(m_model.isIdentity());
-    Q_ASSERT(m_view.isIdentity());
     Q_ASSERT(m_projection.isIdentity());
 
-    const auto eye = 1.5 * QVector3D(3, 3, 8);
-    const auto center = QVector3D(0, 0, 0);
-    const auto up = QVector3D(0, 1, 0);
-    m_view.lookAt(eye, center, up);
+    connect(m_camera, &Camera::viewMatrixChanged, this, [this] { update(); });
 }
 
 GLWidget::~GLWidget()
@@ -76,7 +78,7 @@ void GLWidget::paintGL()
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    QMatrix4x4 mvp = m_projection * m_view * m_model;
+    QMatrix4x4 mvp = m_projection * m_camera->viewMatrix() * m_model;
 
     m_program->bind();
     m_program->setUniformValue(m_mvpUniform, mvp);
@@ -87,9 +89,6 @@ void GLWidget::paintGL()
         QOpenGLVertexArrayObject::Binder vaoBinder(&m_vao);
         glDrawArrays(GL_LINES, 0, m_wireframeVertices.size());
     }
-
-    m_model.rotate(0.1, QVector3D(0, 1, 0));
-    update();
 }
 
 void GLWidget::setThickness(float thickness)
@@ -106,6 +105,24 @@ void GLWidget::initializeGL()
 
     initProgram();
     initBuffer();
+}
+
+void GLWidget::mousePressEvent(QMouseEvent *event)
+{
+    m_lastMousePos = event->pos();
+    event->accept();
+}
+
+void GLWidget::mouseMoveEvent(QMouseEvent *event)
+{
+    const auto offset = event->pos() - m_lastMousePos;
+
+    m_lastMousePos = event->pos();
+
+    m_camera->panAboutViewCenter(-offset.x());
+    m_camera->tiltAboutViewCenter(offset.y());
+
+    event->accept();
 }
 
 void GLWidget::initProgram()

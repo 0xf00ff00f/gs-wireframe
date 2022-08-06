@@ -11,6 +11,7 @@ find_package(Qt6 COMPONENTS Core Gui OpenGL OpenGLWidgets Widgets REQUIRED)
 add_executable(test
     main.cpp
     mesh.cpp
+    camera.cpp
     test.qrc
 )
 
