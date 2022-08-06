@@ -36,8 +36,7 @@ private:
     QMatrix4x4 m_model;
     QMatrix4x4 m_view;
     QMatrix4x4 m_projection;
-    int m_mvpUniformSolid = -1;
-    int m_mvpUniformLine = -1;
+    int m_mvpUniform = -1;
     int m_viewportSizeUniform = -1;
     int m_thicknessUniform = -1;
     std::vector<QVector3D> m_wireframeVertices;
@@ -73,13 +72,14 @@ void GLWidget::paintGL()
     QMatrix4x4 mvp = m_projection * m_view * m_model;
 
     m_program.bind();
-    m_program.setUniformValue(m_mvpUniformLine, mvp);
+    m_program.setUniformValue(m_mvpUniform, mvp);
     m_program.setUniformValue(m_viewportSizeUniform, QVector2D(width(), height()));
     m_program.setUniformValue(m_thicknessUniform, m_thickness);
 
-    QOpenGLVertexArrayObject::Binder vaoBinder(&m_vao);
-
-    glDrawArrays(GL_LINES, 0, m_wireframeVertices.size());
+    {
+        QOpenGLVertexArrayObject::Binder vaoBinder(&m_vao);
+        glDrawArrays(GL_LINES, 0, m_wireframeVertices.size());
+    }
 
     m_model.rotate(0.1, QVector3D(0, 1, 0));
     update();
@@ -111,7 +111,7 @@ void GLWidget::initProgram()
         qWarning() << "Failed to add fragment shader:" << m_program.log();
     if (!m_program.link())
         qWarning() << "Failed to link program";
-    m_mvpUniformLine = m_program.uniformLocation("mvp");
+    m_mvpUniform = m_program.uniformLocation("mvp");
     m_viewportSizeUniform = m_program.uniformLocation("viewportSize");
     m_thicknessUniform = m_program.uniformLocation("thickness");
 }
@@ -139,10 +139,9 @@ void GLWidget::initBuffer()
             const auto fromIndex = face[i].positionIndex;
             const auto toIndex = face[j].positionIndex;
 
-            if (seen.count(std::tuple(fromIndex, toIndex)) || seen.count(std::tuple(toIndex, fromIndex)))
+            if (seen.count({fromIndex, toIndex}) || seen.count({toIndex, fromIndex}))
                 continue;
-
-            seen.insert(std::tuple(fromIndex, toIndex));
+            seen.insert({fromIndex, toIndex});
 
             const auto from = positions[fromIndex] - center;
             m_wireframeVertices.push_back(from);
